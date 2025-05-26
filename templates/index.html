@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>TO-DO</title>
+  <style>
+    body {
+      background-color: #f9f9f9;
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      padding: 50px;
+    }
+    .container {
+      display: flex;
+      gap: 40px;
+      align-items: flex-start;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .calendar-section {
+      flex: 1;
+      text-align: center;
+    }
+    .form-section {
+      flex: 1;
+      text-align: left;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    select {
+      padding: 5px;
+      margin: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      width: 14.2%;
+      padding: 10px;
+      text-align: center;
+    }
+    th {
+      background-color: #eee;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    td button {
+      border: none;
+      background: none;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .selected-day {
+      border: 2px solid #1e90ff;
+      border-radius: 6px;
+      background-color: #e8f4ff;
+    }
+    .sun { color: red; }
+    .sat { color: blue; }
+    form input, form textarea {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    form button {
+      padding: 8px 12px;
+      background-color: #aaa;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    ul {
+      text-align: left;
+      padding-left: 20px;
+    }
+    li {
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    .done { text-decoration: line-through; color: gray; }
+  </style>
+  <script>
+    /*
+    selectDate(day) : 날짜 클릭 시 -> 할 일 목록 표시
+    changeMonth() : 월 변경 시 -> 페이지 새로고침
+    changeYear() : 연도 변경 시 -> 페이지 새로고침
+    */
+   //날짜 문자열 만들기(YYYY-MM-DD)
+    function selectDate(day) {
+      const y = document.getElementById("yearSelect").value;
+      const m = document.getElementById("monthSelect").value;
+      const d = String(day).padStart(2, '0');
+      const date = `${y}-${String(m).padStart(2, '0')}-${d}`;
+      //hidden input에 선택한 날짜 저장
+      const target = document.getElementById("selectedDate");
+      if (target) {
+        target.value = date;
+        //이전 선택된 날짜 표시 제거 & 새 선택 강조
+        const prev = document.querySelector('.selected-day');
+        if (prev) prev.classList.remove('selected-day');
+        const buttons = document.querySelectorAll('td button');
+        buttons.forEach(btn => {
+          if (btn.textContent === String(day)) {
+            btn.classList.add('selected-day');
+          }
+        });
+
+        /*
+        개발자 도구 확인용
+        console.log("선택한 날짜:", date);
+        */
+        //할 일 목록 오른쪽에 표시 (safe)
+        const todos = {{ todos_json | safe }};
+        //해당 날짜의 할 일 목록 렌더링
+        const todoList = document.getElementById("todoList");
+        const todoListTitle = document.getElementById("todoListTitle");
+        const key = date;
+        if (todos[key] && todos[key].length > 0) {
+          todoListTitle.textContent = `${date}의 할 일 목록`;
+          todoList.innerHTML = "";
+          todos[key].forEach((t, i) => {
+            const item = document.createElement("div");
+            item.innerHTML = `
+<div style="display: flex; align-items: center; gap: 6px;">
+  <input type="checkbox" onchange="document.getElementById('form-${i}').submit()" ${t.done ? 'checked' : ''}>
+  <b>${t.title}</b>
+</div>
+<form id="form-${i}" action="/toggle_done" method="POST" style="display: none;">
+  <input type="hidden" name="date" value="${key}">
+  <input type="hidden" name="index" value="${i}">
+</form>
+<div style="margin-left: 22px; margin-top: 4px;">
+  ${t.content}<br>
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <span>⏰ deadline: ${t.deadline ? t.deadline.replace('T', ' ') : '없음'}</span>
+    <form action='/delete_todo' method='POST'>
+      <input type='hidden' name='date' value='${key}'>
+      <input type='hidden' name='index' value='${i}'>
+      <button type='submit'>delete</button>
+    </form>
+  </div>
+</div>
+<hr>
+`;
+            todoList.appendChild(item);
+          });
+        } else {
+          todoListTitle.textContent = `${date}의 할 일 목록`;
+          todoList.innerHTML = "<i>등록된 할 일이 없습니다.</i>";
+        }
+      }
+    }
+
+    function changeMonth() {
+      const m = document.getElementById("monthSelect").value;
+      window.location.href = `/?month=${m}&year={{ year }}`;
+    }
+
+    function changeYear() {
+      const y = document.getElementById("yearSelect").value;
+      window.location.href = `/?month={{ month }}&year=${y}`;
+    }
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div class="calendar-section">
+      <h1>TO-DO</h1>
+      <!--연도 / 월 선택 영역
+          2020~2030까지 반복해서 <option> 생성
+          선택된 연도에는 selected 속성이 붙음-->
+      <select id="yearSelect" onchange="changeYear()">
+        {% for y in range(2020, 2031) %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}년</option>
+        {% endfor %}
+      </select>
+      <!--월 1~12까지 반복
+          선택된 달에 selected 붙음-->
+      <select id="monthSelect" onchange="changeMonth()">
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}월</option>
+        {% endfor %}
+      </select>
+      <!--캘린더(행: 주차/ 셀: 요일) python 2차원 리스트-->
+      <table>
+        <tr>
+          <th class="sun">일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th class="sat">토</th>
+        </tr>
+        {% for week in calendar %}
+        <tr>
+          {% for day in week %}
+          <!--날짜 존재하면 캘린터 표시, 클릭 시 selectDate(day) 함수 호출-->
+          {% if day %}
+          <td>
+            <button type="button" onclick="selectDate({{ day }})">{{ day }}</button>
+            <!--해당 날짜의 할 일 개수 출력 (미완료만)-->
+            {% set key = year ~ '-' ~ '%02d'|format(month) ~ '-' ~ '%02d'|format(day) %}
+            {% if todos.get(key) %}
+  {% set incomplete = todos[key] | selectattr("done", "equalto", False) | list %}
+  {% if incomplete|length > 0 %}
+    <div style="font-size: 12px; color: gray;">{{ incomplete|length }}개</div>
+  {% endif %}
+{% endif %}
+          </td>
+          <!--날짜가 없는 셀-->
+          {% else %}
+          <td></td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="form-section">
+      <form action="/add_todo" method="POST">
+        <input type="hidden" name="date" id="selectedDate">
+        <input type="text" name="title" placeholder="제목" required>
+        <textarea name="content" placeholder="내용"></textarea>
+        <input type="datetime-local" name="deadline">
+        <button type="submit">할 일 추가</button>
+      </form>
+      <div id="todoListArea">
+        <h3 id="todoListTitle" style="margin-top:20px; font-size: 16px;">할 일 목록</h3>
+        <div id="todoList" style="font-size: 14px;"></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
